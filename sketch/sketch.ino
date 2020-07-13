@@ -141,61 +141,6 @@ void zero_buffer8(uint8_t *buffer, int size)
 }
 
 
-/* Extract valid 12 bits ( sensor value ) with sign - from 16 bit number
- */
-float extract_12_bits(uint16_t val){
-  int16_t  v1 = (val << 4);
-  float  v2 = (v1 >> 4);
-  return v2;
-}
-
-int16_t convert_sensor_value_from2s_comp(uint16_t abs_value)
-{
-    /* Bit 12 contains the sign bit*/
-    uint16_t s = ( 1 << 12);
-    uint16_t c = ~(s - 1);
-
-    /* remove one signed bit and 4 unused bits at the msb*/
-    c = (c << 5);
-    c = (c >> 5);
-  
-    uint16_t o = c |  abs_value;
-    
-    /*Add - before converted absolute value*/
-    int16_t value_in_decimal = 0 - ((int16_t) o);  
-    return value_in_decimal;
-}
-
-int16_t extract_11_bits(uint16_t input12_bits)
-{
-    /* Extract 11 bits from input */
-    uint16_t absolute_value = ( input12_bits & MASK_EXTRACT_11_BITS_FROM_LSB ); 
-    int16_t value = 0;
-
-   if(input12_bits & MASK_EXTRACT_ONLY_12TH_BIT){ 
-        /* Negative Value*/
-        value = convert_sensor_value_from2s_comp(absolute_value);
-    }else{
-        /* Positive Value*/
-        value =  (int16_t)  (absolute_value);
-    }
-
-    return value;
-}
-
-double extract_raw_sensor_value(uint16_t sensor_reading)
-{
-    float  sensor_value_12_bits;
-    //int16_t   sensor_value_11_bits;
-    double sensor_value;
-
-    sensor_value_12_bits = extract_12_bits(sensor_reading);
-    //sensor_value_11_bits = extract_11_bits(sensor_value_12_bits);  
-    sensor_value = (double) sensor_value_12_bits;
-
-    return sensor_value;
-}
-
 double get_sensor_value_in_degrees(double sensor_value)
 {
     double v = (double) AMG8833_TEMP_CONVERSION_CONSTANT * sensor_value;
@@ -313,6 +258,15 @@ void AMG8833_READ_PIXELS(double *pixels)
         uint16_t v1, v2; 
         
         if( BIT_12_MASK & merged_value ){
+            /* 0xf          = 1111
+             * (0xf << 12)  = 1111 0000 0000 0000
+             *
+             * v1 = (merged_value | (0xf << 12)) = ( give a result with 1111 appended to the msb of  12 bit sensor value )
+             *
+             * ~(v1)        = 0000 0xxx xxxx xxxx
+             * v2 = ~(v1) + 1    = 0000 0xxx xxxx xxx1 [ just 1 is for reference. Don't take it literally ;-) ] 
+             * v2 has the absolute value ( if the temperature is negative )
+             */
             v1 = merged_value | (0xf << 12);
             v2 =  (~(v1)) + (1);
             sensor_val_extracted = (int16_t) v2;
