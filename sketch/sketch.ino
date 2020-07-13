@@ -1,10 +1,16 @@
+//#define DEBUG
+
 /* 
  *      
  */
 #include <Wire.h>
+#include <math.h>
+
 /* Reference : "../documents/GRID_EYE_SPECS.pdf"
  */
 /* I2C Address */
+
+
 
 #define AMG_I2C_ADDRESS 0x69
 
@@ -294,9 +300,8 @@ void AMG8833_READ_PIXELS(double *pixels)
 #endif
 
     uint16_t  merged_value;
-    uint16_t  valid_sensor_reading;
     double sensor_value;
-    
+    int16_t sensor_val_extracted; 
     /*append msb and lsb*/
     for(i=0; i<64; i++){
         uint8_t lsb = buffer[(i*2)];
@@ -305,13 +310,17 @@ void AMG8833_READ_PIXELS(double *pixels)
         /* 0xf = 1111
          * BIT_12_MASK = 0x800 [ settign only 12th bit]
          */
-       
-        valid_sensor_reading = ( BIT_12_MASK & merged_value )? ( merged_value | ( 0xf << 12 )) : merged_value; 
+        uint16_t v1, v2; 
+        
         if( BIT_12_MASK & merged_value ){
+            v1 = merged_value | (0xf << 12);
+            v2 =  (~(v1)) + (1);
+            sensor_val_extracted = (int16_t) v2;
             /*BUG: Negative Use Case is not tested */
-            sensor_value = (double) 0.0 - (double) (valid_sensor_reading) ;
+            sensor_value = (double) 0.0 - (double) (sensor_val_extracted) ;
         }else{
-            sensor_value = (double) (valid_sensor_reading) ;
+            sensor_val_extracted = (int16_t) (merged_value);
+            sensor_value = (double) (sensor_val_extracted) ;
         }
 
         pixels[i] = get_sensor_value_in_degrees(sensor_value);   
@@ -336,9 +345,45 @@ void display_single_pixel(double px){
     Serial.println("");
 }
 
+
+void display_pixels(double *pixels)
+{
+    String s;
+    s = "";
+    for(int i=0; i<64; i++){
+        s += "[ ";
+        s += String(round(pixels[i]));
+        s += "\t] ";
+        if(((i+1)%8) == 0){
+          s += "\n";
+        }
+    }
+    Serial.println("");
+    Serial.println(s);
+    Serial.println("");
+}
+
+void display_pixels_for_ui(double *pixels)
+{
+    String s = "GRID_EYE#";
+    for(int i=0; i<64; i++){
+        s += String(round(pixels[i]));
+        s += "#";
+    }
+    Serial.println("");
+    Serial.println(s);
+    Serial.println("");
+
+    Serial.println("");
+}
+
+
+
 void loop() {
     double pixels[64];
     AMG8833_READ_PIXELS(pixels);
-    display_single_pixel(pixels[40]);
-    delay(100);
+    //display_single_pixel(pixels[40]);
+    display_pixels(pixels);
+    //display_pixels_for_ui(pixels);
+    delay(200);
 }
